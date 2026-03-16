@@ -1,0 +1,9 @@
+{
+  "ignore": [
+    "*.log",
+    "node_modules",
+    "public",
+    "aggregation_debug.log"
+  ],
+  "ext": "js,json"
+}
