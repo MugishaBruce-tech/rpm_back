@@ -96,6 +96,7 @@ const getInventory = async (req, res) => {
         materialKey: m.material_key,
         sku: m.global_material_id,
         materialDescription: m.material_description,
+        material_name2: m.material_name2,
         physicalQty,
         lentQty,
         borrowedQty,
@@ -195,6 +196,7 @@ const getAggregatedInventory = async (req, res) => {
         materialKey: m.material_key,
         sku: m.global_material_id,
         materialDescription: m.material_description,
+        material_name2: m.material_name2,
         physicalQty,
         lentQty,
         borrowedQty,
@@ -223,9 +225,14 @@ const getAggregatedInventory = async (req, res) => {
 const getInventoryDistribution = async (req, res) => {
   try {
     const requestedRegionDist = req.query.region;
+    const isGlobal = req.query.global === 'true';
     let whereClause = { ...req.conditions };
 
-    if (requestedRegionDist) {
+    // If global view requested and user has permission (OPCO or higher)
+    if (isGlobal) {
+      // Clear region lock to get all regions
+      whereClause = { business_partner_status: 'active' };
+    } else if (requestedRegionDist) {
       if (!req.conditions.region) {
         // No region lock — OPCO can freely switch regions
         whereClause = { region: requestedRegionDist };
@@ -238,10 +245,36 @@ const getInventoryDistribution = async (req, res) => {
       }
     }
 
+    // Aggregation case: Global overview grouped by region
+    if (isGlobal) {
+      const [regionalResults] = await sequelize.query(`
+        SELECT bp.region, SUM(t.stock_qty_in_base_uom) as total_physical
+        FROM business_partner bp
+        JOIN (
+          SELECT business_partner_key, material_key, stock_qty_in_base_uom, 
+                 ROW_NUMBER() OVER(PARTITION BY business_partner_key, material_key ORDER BY date_time DESC) as rn
+          FROM empties_stock
+        ) t ON bp.business_partner_key = t.business_partner_key
+        WHERE t.rn = 1 AND bp.business_partner_status = 'active'
+        GROUP BY bp.region
+      `);
+
+      const finalResults = regionalResults.map(r => ({
+        region: r.region || 'Unknown',
+        totalStock: parseFloat(r.total_physical || 0)
+      }));
+
+      return res.status(RESPONSE_CODES.OK).json({ 
+        statusCode: RESPONSE_CODES.OK,
+        httpStatus: RESPONSE_STATUS.OK,
+        result: finalResults 
+      });
+    }
+
     // Get all valid partners for this scope
     const partners = await BusinessPartner.findAll({
        where: { ...whereClause, business_partner_status: 'active' },
-       attributes: ['business_partner_key', 'business_partner_name']
+       attributes: ['business_partner_key', 'business_partner_name', 'region']
     });
     
     const partnerKeys = partners.map(p => p.business_partner_key);
@@ -297,21 +330,46 @@ const adjustStock = async (req, res) => {
     const { business_partner_key: currentPartnerKey, user_ad: userAd } = req.user;
     const { adjustments, reason, partnerKey } = req.body;
 
-    // Use partnerKey from body if it's an admin adjusting someone else's stock
-    // Otherwise use currentPartnerKey
     let targetKey = currentPartnerKey;
     if (partnerKey && !req.conditions.business_partner_key) {
       targetKey = partnerKey;
     }
 
+    const auditDetails = [];
+
     for (const adj of adjustments) {
+      // Fetch current stock to calculate delta for audit log
+      const current = await EmptiesStock.findOne({
+        where: { business_partner_key: targetKey, material_key: adj.material_key },
+        order: [["date_time", "DESC"]],
+        transaction: t
+      });
+
+      const oldQty = current ? parseFloat(current.stock_qty_in_base_uom) : 0;
+      const newQty = parseFloat(adj.quantity);
+      const delta = newQty - oldQty;
+      
+      if (delta !== 0) {
+        const material = await Material.findByPk(adj.material_key, { transaction: t });
+        const actionText = delta > 0 ? "Increased" : "Decreased";
+        auditDetails.push(`${actionText} ${material?.material_description || 'items'} from ${oldQty} to ${newQty}`);
+      }
+
       await StockService.setStock(targetKey, adj.material_key, adj.quantity, userAd, reason, t);
+    }
+
+    // Attach info for the audit logger middleware
+    if (auditDetails.length > 0) {
+      req.audit_info = `Stock Adjustment: ${auditDetails.join(', ')}`;
+    } else {
+      req.audit_info = "Stock Adjustment: No net change";
     }
 
     await t.commit();
     res.status(RESPONSE_CODES.OK).json({ message: "Stock adjusted successfully" });
   } catch (error) {
-    await t.rollback();
+    if (t) await t.rollback();
+    console.error("Stock adjustment error:", error);
     res.status(500).json({ message: "Error adjusting stock" });
   }
 };

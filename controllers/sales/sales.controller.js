@@ -9,7 +9,19 @@ const addSale = async (req, res) => {
   const t = await sequelize.transaction();
   try {
     const { business_partner_key: currentPartnerKey, user_ad: USER_AD } = req.user;
-    const { SALE_TYPE, TARGET_NAME, NOTES, items } = req.body;
+    const { SALE_TYPE, TARGET_NAME, NOTES, items, CLIENT_ID } = req.body;
+
+    if (CLIENT_ID) {
+      const existingSale = await Sale.findOne({ where: { CLIENT_ID } });
+      if (existingSale) {
+        return res.status(RESPONSE_CODES.OK).json({
+          statusCode: RESPONSE_CODES.OK,
+          httpStatus: RESPONSE_STATUS.OK,
+          message: "Sale already exists (idempotent)",
+          result: existingSale
+        });
+      }
+    }
 
     if (!items || items.length === 0) {
         return res.status(RESPONSE_CODES.UNPROCESSABLE_ENTITY).json({
@@ -24,7 +36,8 @@ const addSale = async (req, res) => {
         SALE_TYPE,
         TARGET_NAME,
         NOTES,
-        USER_AD: USER_AD
+        USER_AD: USER_AD,
+        CLIENT_ID: CLIENT_ID || null
     }, { transaction: t });
 
     for (const item of items) {

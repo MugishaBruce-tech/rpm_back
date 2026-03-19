@@ -36,11 +36,18 @@ const Sale = sequelize.define(
       type: DataTypes.STRING(128),
       allowNull: false,
     },
+    CLIENT_ID: {
+      type: DataTypes.UUID,
+      allowNull: true,
+      unique: true,
+    },
   },
   {
     freezeTableName: true,
     tableName: "sale",
-    timestamps: false,
+    timestamps: true,
+    createdAt: "DATE_SALE",
+    updatedAt: "updated_at",
   }
 );
 

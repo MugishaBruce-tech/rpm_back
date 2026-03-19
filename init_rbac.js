@@ -36,7 +36,10 @@ const PERMISSIONS = [
   { code: 'LOAN_MANAGE_SELF', description: 'Approve/Reject own provided loans', category: 'loan' },
   
   // Settings
-  { code: 'SETTINGS_MANAGE', description: 'Manage system settings and colors', category: 'settings' }
+  { code: 'SETTINGS_MANAGE', description: 'Manage system settings and colors', category: 'settings' },
+  
+  // Audit Logs
+  { code: 'AUDIT_VIEW', description: 'View user activity and audit logs', category: 'audit' }
 ];
 
 const ROLE_PERMISSIONS = {

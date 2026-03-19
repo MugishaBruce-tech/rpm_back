@@ -18,6 +18,9 @@ const authorize = (requiredPermission) => {
     const userPermissions = req.user.profil.permissions.map((p) => p.code);
     const permissionsArray = Array.isArray(requiredPermission) ? requiredPermission : [requiredPermission];
 
+    console.log(`[AUTH] Checking permissions for ${req.user.email || req.user.user_ad} (${req.user.profil.CODE_PROFIL})`);
+    console.log(`[AUTH] Required: [${permissionsArray.join(", ")}], User has: [${userPermissions.join(", ")}]`);
+
     const hasPermission = permissionsArray.some((p) => userPermissions.includes(p));
 
     if (!hasPermission) {
@@ -49,7 +52,10 @@ const authorize = (requiredPermission) => {
         req.conditions.region = region;
       } else {
         // Default: Lock to their own business partner key (for Stock/Loans)
-        req.conditions.business_partner_key = req.user.business_partner_key;
+        // Ensure business_partner_key exists (SUB_D should always be BusinessPartner type)
+        if (req.user.business_partner_key) {
+          req.conditions.business_partner_key = req.user.business_partner_key;
+        }
       }
     }
     // 2. Regional Scoping
@@ -70,7 +76,11 @@ const authorize = (requiredPermission) => {
     
     // Exception: If the specific permission requested is a "Self" permission, force self-scope
     if (permissionsArray.every(p => p.endsWith('_SELF'))) {
-      req.conditions.business_partner_key = req.user.business_partner_key;
+      if (req.user.is_internal) {
+        req.conditions.id = req.user.id;
+      } else if (req.user.business_partner_key) {
+        req.conditions.business_partner_key = req.user.business_partner_key;
+      }
     }
 
     next();

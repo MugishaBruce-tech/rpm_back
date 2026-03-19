@@ -24,7 +24,7 @@ const BusinessPartner = sequelize.define(
       allowNull: false,
     },
     customer_channel: {
-      type: DataTypes.ENUM("sub-distributor", "distributor"),
+      type: DataTypes.ENUM("sub-distributor"),
       allowNull: false,
     },
     business_partner_status: {
@@ -95,6 +95,8 @@ const BusinessPartner = sequelize.define(
 BusinessPartner.associate = (models) => {
   BusinessPartner.belongsTo(models.legal_entity, { foreignKey: "legal_entity_key", as: "legal_entity" });
   BusinessPartner.belongsTo(models.profil, { foreignKey: "profil_id", as: "profil" });
+  BusinessPartner.hasMany(models.audit_log, { foreignKey: "business_partner_key", as: "audit_logs" });
+  BusinessPartner.hasMany(models.businesspartnertokens, { foreignKey: "business_partner_key", as: "tokens" });
 };
 
 module.exports = BusinessPartner;

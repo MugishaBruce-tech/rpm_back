@@ -1,12 +1,17 @@
 const { DataTypes } = require("sequelize");
 const sequelize = require("../utils/sequelize");
 
-const BusinessPartnerTokens = sequelize.define("BusinessPartnerTokens", {
+const BusinessPartnerTokens = sequelize.define("businesspartnertokens", {
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
   business_partner_key: {
     type: DataTypes.INTEGER.UNSIGNED,
-    allowNull: false,
+    allowNull: true,
     references: { model: "business_partner", key: "business_partner_key" },
+  },
+  brarudi_user_id: {
+    type: DataTypes.INTEGER.UNSIGNED,
+    allowNull: true,
+    references: { model: "brarudi_users", key: "id" },
   },
   refresh_token: { type: DataTypes.TEXT, allowNull: false },
   is_active: { type: DataTypes.TINYINT, defaultValue: 1 },
@@ -24,6 +29,7 @@ const BusinessPartnerTokens = sequelize.define("BusinessPartnerTokens", {
 
 BusinessPartnerTokens.associate = (models) => {
   BusinessPartnerTokens.belongsTo(models.business_partner, { foreignKey: "business_partner_key", as: "partner" });
+  BusinessPartnerTokens.belongsTo(models.brarudi_user, { foreignKey: "brarudi_user_id", as: "internal_user" });
 };
 
 module.exports = BusinessPartnerTokens;

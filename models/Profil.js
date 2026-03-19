@@ -35,6 +35,8 @@ Profil.associate = (models) => {
     otherKey: "permission_id",
     as: "permissions",
   });
+  Profil.hasMany(models.brarudi_user, { foreignKey: "profil_id", as: "internal_users" });
+  Profil.hasMany(models.business_partner, { foreignKey: "profil_id", as: "partners" });
 };
 
 module.exports = Profil;

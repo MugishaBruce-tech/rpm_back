@@ -1,9 +1,14 @@
 const nodemailer = require("nodemailer");
+const path = require("path");
 
 /**
  * Mail Service to handle automated email communications
  */
 class MailService {
+  constructor() {
+    this.logoPath = path.join(__dirname, "../assets/logo.png");
+  }
+
   getTransporter() {
     return nodemailer.createTransport({
       host: process.env.MAIL_HOST || "82.208.23.214",
@@ -19,12 +24,16 @@ class MailService {
     });
   }
 
+  getLogoAttachment() {
+    return {
+      filename: 'logo.png',
+      path: this.logoPath,
+      cid: 'heineken_logo'
+    };
+  }
+
   /**
    * Send credentials to a new user
-   * @param {string} to - Receiver email
-   * @param {string} name - Receiver name
-   * @param {string} username - User AD/Email
-   * @param {string} password - Generated password
    */
   async sendWelcomeEmail(to, name, username, password) {
     const loginUrl = process.env.FRONTEND_URL || "http://localhost:5173";
@@ -36,6 +45,7 @@ class MailService {
       html: `
         <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
           <div style="background-color: #216730; padding: 30px; text-align: center;">
+            <img src="cid:heineken_logo" alt="logo" style="height: 60px; margin-bottom: 10px;" />
             <h1 style="color: white; margin: 0; font-size: 24px;">RPM Tracker</h1>
           </div>
           <div style="padding: 40px; background-color: #ffffff; color: #1e293b;">
@@ -59,11 +69,11 @@ class MailService {
           </div>
         </div>
       `,
+      attachments: [this.getLogoAttachment()]
     };
 
     try {
       const transporter = this.getTransporter();
-      await transporter.verify(); // Check if connection is valid
       const info = await transporter.sendMail(mailOptions);
       console.log(`Email sent: ${info.messageId}`);
       return info;
@@ -75,9 +85,6 @@ class MailService {
 
   /**
    * Send OTP to user for login verification
-   * @param {string} to - Receiver email
-   * @param {string} name - Receiver name
-   * @param {string} otp - 6-digit OTP code
    */
   async sendOTPEmail(to, name, otp) {
     const mailOptions = {
@@ -87,6 +94,7 @@ class MailService {
       html: `
         <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 500px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
           <div style="background-color: #216730; padding: 20px; text-align: center;">
+            <img src="cid:heineken_logo" alt="logo" style="height: 50px; margin-bottom: 5px;" />
             <h1 style="color: white; margin: 0; font-size: 20px;">Verification Required</h1>
           </div>
           <div style="padding: 30px; background-color: #ffffff; color: #1e293b; text-align: center;">
@@ -98,23 +106,120 @@ class MailService {
             </div>
             
             <p style="font-size: 13px; color: #64748b;">This code is valid for <strong>30 minutes</strong>.</p>
-            <p style="font-size: 12px; color: #94a3b8; margin-top: 20px;">If you did not request this code, please ignore this email or contact support.</p>
           </div>
           <div style="background-color: #f8fafc; padding: 15px; text-align: center; color: #94a3b8; font-size: 10px; border-top: 1px solid #f1f5f9;">
             <p>&copy; 2026 BRARUDI All rights reserved.</p>
           </div>
         </div>
       `,
+      attachments: [this.getLogoAttachment()]
     };
 
     try {
       const transporter = this.getTransporter();
-      await transporter.verify();
       const info = await transporter.sendMail(mailOptions);
-      console.log(`OTP Email sent: ${info.messageId}`);
       return info;
     } catch (error) {
       console.error("Error sending OTP email:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Send loan request notification
+   */
+  async sendLoanNotificationEmail(to, name, requesterName, materialName, quantity) {
+    const loginUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+    
+    const mailOptions = {
+      from: `"BRARUDI RPM Tracker" <${process.env.MAIL_FROM || "noreply@mediabox.bi"}>`,
+      to,
+      subject: "New Loan Request - Action Required",
+      html: `
+        <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
+          <div style="background-color: #216730; padding: 30px; text-align: center;">
+            <img src="cid:heineken_logo" alt="logo" style="height: 60px; margin-bottom: 10px;" />
+            <h1 style="color: white; margin: 0; font-size: 24px;">New Loan Request</h1>
+          </div>
+          <div style="padding: 40px; background-color: #ffffff; color: #1e293b;">
+            <h2 style="color: #1e293b; margin-top: 0;">Loan Approval Pending</h2>
+            <p>Hello <strong>${name}</strong>,</p>
+            <p>You have received a new loan request for material in <strong>BRARUDI RPM Tracker</strong>.</p>
+            
+            <div style="background-color: #f8fafc; padding: 25px; border-radius: 6px; margin: 30px 0; border: 1px solid #f1f5f9;">
+              <p style="margin: 0 0 10px 0;"><strong>Requester:</strong> ${requesterName}</p>
+              <p style="margin: 0 0 10px 0;"><strong>Material:</strong> ${materialName}</p>
+              <p style="margin: 0;"><strong>Quantity:</strong> <span style="font-weight: bold; color: #216730;">${quantity} Units</span></p>
+            </div>
+            
+            <p style="margin-bottom: 30px;">Please log in to your dashboard to approve or reject this request.</p>
+            
+            <div style="text-align: center;">
+              <a href="${loginUrl}/loans" style="background-color: #216730; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600; display: inline-block;">View Request in Dashboard</a>
+            </div>
+          </div>
+          <div style="background-color: #f8fafc; padding: 20px; text-align: center; color: #94a3b8; font-size: 12px; border-top: 1px solid #f1f5f9;">
+            <p>&copy; 2026 BRARUDI All rights reserved.</p>
+          </div>
+        </div>
+      `,
+      attachments: [this.getLogoAttachment()]
+    };
+
+    try {
+      const transporter = this.getTransporter();
+      const info = await transporter.sendMail(mailOptions);
+      console.log(`Loan Notification Email sent: ${info.messageId}`);
+      return info;
+    } catch (error) {
+      console.error("Error sending loan notification email:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Send password reset confirmation
+   */
+  async sendPasswordResetEmail(to, name, newPassword) {
+    const loginUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+    
+    const mailOptions = {
+      from: `"BRARUDI RPM Tracker" <${process.env.MAIL_FROM || "noreply@mediabox.bi"}>`,
+      to,
+      subject: "Password Updated - BRARUDI RPM Tracker",
+      html: `
+        <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
+          <div style="background-color: #D71921; padding: 30px; text-align: center;">
+            <img src="cid:heineken_logo" alt="logo" style="height: 60px; margin-bottom: 10px;" />
+            <h1 style="color: white; margin: 0; font-size: 24px;">RPM Tracker</h1>
+          </div>
+          <div style="padding: 40px; background-color: #ffffff; color: #1e293b;">
+            <h2 style="color: #1e293b; margin-top: 0;">Password Successfully Updated</h2>
+            <p>Hello <strong>${name}</strong>,</p>
+            <p>Your password for the <strong>BRARUDI RPM Tracker</strong> has been updated. Your new temporary credentials are:</p>
+            
+            <div style="background-color: #f8fafc; padding: 20px; border-radius: 6px; margin: 30px 0; border: 1px solid #f1f5f9;">
+              <p style="margin: 0;"><strong>New Password:</strong> <code style="background: #e2e8f0; padding: 2px 6px; border-radius: 4px; font-weight: bold; color: #D71921;">${newPassword}</code></p>
+            </div>
+            
+            <div style="text-align: center;">
+              <a href="${loginUrl}" style="background-color: #D71921; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600; display: inline-block;">Login to Dashboard</a>
+            </div>
+          </div>
+          <div style="background-color: #f8fafc; padding: 20px; text-align: center; color: #94a3b8; font-size: 12px; border-top: 1px solid #f1f5f9;">
+            <p>&copy; 2026 BRARUDI All rights reserved.</p>
+          </div>
+        </div>
+      `,
+      attachments: [this.getLogoAttachment()]
+    };
+
+    try {
+      const transporter = this.getTransporter();
+      const info = await transporter.sendMail(mailOptions);
+      return info;
+    } catch (error) {
+      console.error("Error sending password reset email:", error);
       throw error;
     }
   }

@@ -1,5 +1,6 @@
 const jwt = require("jsonwebtoken");
 const BusinessPartner = require("../models/BusinessPartner");
+const BrarudiUser = require("../models/BrarudiUser");
 const Profil = require("../models/Profil");
 const Permission = require("../models/Permission");
 const RESPONSE_CODES = require("../constants/RESPONSE_CODES");
@@ -27,16 +28,31 @@ const requireAuth = async (req, res, next) => {
         });
       }
 
-      const user = await BusinessPartner.findOne({
-        where: { business_partner_key: decoded.business_partner_key, business_partner_status: "active" },
-        include: [
-          { 
+      const { userId, is_internal, business_partner_key } = decoded;
+      
+      let user;
+      const finalUserId = userId || business_partner_key;
+      const isInternal = is_internal === true || is_internal === 'true';
+
+      if (isInternal) {
+        user = await BrarudiUser.findOne({
+          where: { id: finalUserId, status: "active" },
+          include: [{ 
             model: Profil, 
             as: "profil",
             include: [{ model: Permission, as: "permissions" }]
-          }
-        ],
-      });
+          }],
+        });
+      } else {
+        user = await BusinessPartner.findOne({
+          where: { business_partner_key: finalUserId, business_partner_status: "active" },
+          include: [{ 
+            model: Profil, 
+            as: "profil",
+            include: [{ model: Permission, as: "permissions" }]
+          }],
+        });
+      }
 
       if (!user) {
         return res.status(RESPONSE_CODES.UNAUTHORIZED).json({
@@ -46,7 +62,7 @@ const requireAuth = async (req, res, next) => {
         });
       }
 
-      req.user = user.toJSON();
+      req.user = { ...user.toJSON(), is_internal: isInternal, userId: finalUserId };
       next();
     });
   } catch (error) {

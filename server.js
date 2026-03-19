@@ -1,4 +1,5 @@
 const express = require("express");
+// Triggering nodemon restart for metadata sync
 const http = require("http");
 const dotenv = require("dotenv");
 const path = require("path");
@@ -11,21 +12,24 @@ dotenv.config();
 
 const app = express();
 const port = process.env.PORT || 8082;
+const auditLogger = require("./middleware/auditLogger");
 
 // Middleware
 const allowedOrigins = [
-  "http://localhost:5173"
+  "http://localhost:5173",
+  "http://localhost:4173",
+  "http://localhost:3000"
 ];
 
 app.use(cors({
   origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.indexOf(origin) === -1) {
-      const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
-      return callback(new Error(msg), false);
+    // Allow if origin is in list, or is missing (like local requests)
+    if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      console.log('CORS Blocked for origin:', origin);
+      callback(new Error('CORS not allowed'));
     }
-    return callback(null, true);
   },
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
@@ -35,6 +39,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(fileUpload());
 app.use(passport.initialize());
+app.use(auditLogger); // Global logging (will only log authenticated actions via req.user)
 app.use("/public", express.static(path.join(__dirname, "public")));
 
 // Constants
@@ -51,6 +56,8 @@ const sales_provider = require("./routes/sales/sales_provider");
 const loans_provider = require("./routes/loans/loans_provider");
 const user_provider = require("./routes/user/user_provider");
 const dashboard_provider = require("./routes/dashboard/dashboard_provider");
+const audit_provider = require("./routes/audit/audit_provider");
+const sync_provider = require("./routes/sync/sync_provider");
 
 // Base Route
 app.get("/", (req, res) => {
@@ -64,6 +71,8 @@ app.use("/sales", sales_provider);
 app.use("/loans", loans_provider);
 app.use("/user", user_provider);
 app.use("/dashboard", dashboard_provider);
+app.use("/audit", audit_provider);
+app.use("/sync", sync_provider);
 
 // 404 handler
 app.all("*", (req, res) => {

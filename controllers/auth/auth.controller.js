@@ -3,6 +3,7 @@ const jwt = require("jsonwebtoken");
 const UAParser = require("ua-parser-js");
 const geoip = require("geoip-lite");
 const BusinessPartner = require("../../models/BusinessPartner");
+const BrarudiUser = require("../../models/BrarudiUser");
 const BusinessPartnerTokens = require("../../models/BusinessPartnerTokens");
 const Profil = require("../../models/Profil");
 const Permission = require("../../models/Permission");
@@ -37,12 +38,23 @@ const login = async (req, res) => {
       });
     }
 
-    const partnerObject = await BusinessPartner.findOne({
-      where: { user_ad: USER_AD, business_partner_status: "active" },
+    // Try BrarudiUser first (Internal)
+    let userObject = await BrarudiUser.findOne({
+      where: { email: USER_AD, status: "active" },
       include: [{ model: Profil, as: "profil" }],
     });
 
-    if (!partnerObject) {
+    let isInternal = !!userObject;
+
+    // If not found, try BusinessPartner
+    if (!userObject) {
+      userObject = await BusinessPartner.findOne({
+        where: { user_ad: USER_AD, business_partner_status: "active" },
+        include: [{ model: Profil, as: "profil" }],
+      });
+    }
+
+    if (!userObject) {
       return res.status(RESPONSE_CODES.NOT_FOUND).json({
         statusCode: RESPONSE_CODES.NOT_FOUND,
         httpStatus: RESPONSE_STATUS.NOT_FOUND,
@@ -50,8 +62,8 @@ const login = async (req, res) => {
       });
     }
 
-    const partner = partnerObject.toJSON();
-    const validPassword = await bcrypt.compare(PASSWORD, partner.password);
+    const user = userObject.toJSON();
+    const validPassword = await bcrypt.compare(PASSWORD, user.password);
 
     if (!validPassword) {
       return res.status(RESPONSE_CODES.UNAUTHORIZED).json({
@@ -61,27 +73,34 @@ const login = async (req, res) => {
       });
     }
 
+    const userId = isInternal ? user.id : user.business_partner_key;
+    const userName = isInternal ? user.name : user.business_partner_name;
+
+    req.user = { ...user, is_internal: isInternal, userId }; // Attach user for audit logging
+
     // Generate 6-digit OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     const expiresAt = new Date(Date.now() + 30 * 60 * 1000); // 30 mins
 
-    // Save OTP to DB
-    await BusinessPartner.update(
-      { otp_code: otp, otp_expires_at: expiresAt },
-      { where: { business_partner_key: partner.business_partner_key } }
-    );
-    console.log(`OTP [${otp}] saved for user [${partner.user_ad}]`);
+    // Save OTP to correct table
+    if (isInternal) {
+      await BrarudiUser.update({ otp_code: otp, otp_expires_at: expiresAt }, { where: { id: userId } });
+    } else {
+      await BusinessPartner.update({ otp_code: otp, otp_expires_at: expiresAt }, { where: { business_partner_key: userId } });
+    }
+    
+    console.log(`OTP [${otp}] saved for user [${USER_AD}]`);
 
     // Send OTP Email
     mailService.sendOTPEmail(
-      partner.user_ad, 
-      partner.business_partner_name, 
+      USER_AD, 
+      userName, 
       otp
     ).catch(err => console.error("Failed to send login OTP email:", err));
 
-    // Return partial token to identify user during verification
+    // Return partial token
     const mfaToken = jwt.sign(
-      { business_partner_key: partner.business_partner_key, otp_pending: true },
+      { userId, is_internal: isInternal, otp_pending: true },
       process.env.JWT_PRIVATE_KEY,
       { expiresIn: "30m" }
     );
@@ -93,7 +112,7 @@ const login = async (req, res) => {
       result: {
         mfa_token: mfaToken,
         is_mfa_required: true,
-        email: partner.user_ad
+        email: USER_AD
       },
     });
   } catch (error) {
@@ -119,9 +138,12 @@ const resendOTP = async (req, res) => {
     }
 
     const decoded = jwt.verify(mfa_token, process.env.JWT_PRIVATE_KEY);
-    const userId = decoded.business_partner_key;
+    const { userId, is_internal } = decoded;
 
-    const user = await BusinessPartner.findByPk(userId);
+    const user = is_internal 
+      ? await BrarudiUser.findByPk(userId)
+      : await BusinessPartner.findByPk(userId);
+
     if (!user) {
       return res.status(RESPONSE_CODES.NOT_FOUND).json({ message: "User not found" });
     }
@@ -131,11 +153,13 @@ const resendOTP = async (req, res) => {
     const expiresAt = new Date(Date.now() + 30 * 60 * 1000); // 30 mins
 
     await user.update({ otp_code: otp, otp_expires_at: expiresAt });
-    console.log(`OTP [${otp}] resent for user [${user.user_ad}]`);
+    
+    const userName = is_internal ? user.name : user.business_partner_name;
+    const userEmail = is_internal ? user.email : user.user_ad;
 
     mailService.sendOTPEmail(
-      user.user_ad, 
-      user.business_partner_name, 
+      userEmail, 
+      userName, 
       otp
     ).catch(err => console.error("Failed to resend login OTP email:", err));
 
@@ -162,20 +186,28 @@ const verifyEmailOTP = async (req, res) => {
 
     // Verify the temporary MFA token
     const decoded = jwt.verify(mfa_token, process.env.JWT_PRIVATE_KEY);
-    const userId = decoded.business_partner_key;
+    const { userId, is_internal } = decoded;
 
-    const user = await BusinessPartner.findOne({
-      where: { business_partner_key: userId },
-      include: [
-        { 
-          model: Profil, 
-          as: "profil",
-          include: [{ model: Permission, as: "permissions" }]
-        }
-      ]
-    });
+    const user = is_internal 
+      ? await BrarudiUser.findOne({
+          where: { id: userId },
+          include: [{ 
+            model: Profil, 
+            as: "profil", 
+            include: [{ model: Permission, as: "permissions" }] 
+          }]
+        })
+      : await BusinessPartner.findOne({
+          where: { business_partner_key: userId },
+          include: [{ 
+            model: Profil, 
+            as: "profil", 
+            include: [{ model: Permission, as: "permissions" }] 
+          }]
+        });
 
     if (!user || user.otp_code !== token) {
+      console.log(`OTP Mismatch: Received [${token}], Stored [${user?.otp_code}] for user [${userId}]`);
       return res.status(RESPONSE_CODES.UNAUTHORIZED).json({ message: "Invalid verification code" });
     }
 
@@ -188,7 +220,7 @@ const verifyEmailOTP = async (req, res) => {
     await user.update({ otp_code: null, otp_expires_at: null });
 
     // Issue final tokens
-    const tokenData = { business_partner_key: user.business_partner_key };
+    const tokenData = { userId, is_internal };
     const TOKEN = jwt.sign(tokenData, process.env.JWT_PRIVATE_KEY, { 
       expiresIn: parseInt(process.env.APP_ACCESS_TOKEN_MAX_AGE) || 3600 
     });
@@ -197,26 +229,36 @@ const verifyEmailOTP = async (req, res) => {
     });
 
     await BusinessPartnerTokens.create({
-      business_partner_key: user.business_partner_key,
+      business_partner_key: is_internal ? null : userId,
+      brarudi_user_id: is_internal ? userId : null,
       refresh_token: REFRESH_TOKEN,
       ...getTrackingInfo(req)
     });
 
     // Update last login
-    await BusinessPartner.update(
-      { last_login_at: new Date() },
-      { where: { business_partner_key: user.business_partner_key } }
-    );
+    await user.update({ last_login_at: new Date() });
     
-    const partnerData = user.toJSON();
-    delete partnerData.password;
+    req.user = { ...user.toJSON(), is_internal, userId }; 
+    
+    const userData = user.toJSON();
+    delete userData.password;
+
+    // Normalize user data for frontend
+    const resultUser = {
+      ...userData,
+      id: userId,
+      name: is_internal ? userData.name : userData.business_partner_name,
+      email: is_internal ? userData.email : userData.user_ad,
+      role: userData.profil?.CODE_PROFIL,
+      is_internal
+    };
 
     res.status(RESPONSE_CODES.OK).json({ 
       statusCode: RESPONSE_CODES.OK,
       httpStatus: RESPONSE_STATUS.OK,
       message: "Security verification successful",
       result: {
-        ...partnerData,
+        ...resultUser,
         TOKEN,
         REFRESH_TOKEN 
       }
@@ -311,6 +353,8 @@ const verifyMFA = async (req, res) => {
           { last_login_at: new Date() },
           { where: { business_partner_key: user.business_partner_key } }
         );
+        
+        req.user = user.toJSON(); // Attach user for audit logging
         
         res.status(200).json({ TOKEN, REFRESH_TOKEN, message: "MFA Verified" });
     } catch (error) {

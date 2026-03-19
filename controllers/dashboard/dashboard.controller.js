@@ -35,8 +35,9 @@ const getDashboardStats = async (req, res) => {
       });
       targetPartnerKeys = partners.map(p => p.business_partner_key);
     } else if (isGlobal) {
+      // Global view - get all active partners across all regions (for OPCO)
       const partners = await BusinessPartner.findAll({
-        where: { ...req.conditions, business_partner_status: 'active' },
+        where: { business_partner_status: 'active' },
         attributes: ['business_partner_key']
       });
       targetPartnerKeys = partners.map(p => p.business_partner_key);
@@ -175,8 +176,62 @@ const getRegions = async (req, res) => {
   }
 };
 
+/**
+ * Get count of users grouped by region.
+ */
+const getUsersByRegion = async (req, res) => {
+  try {
+    const results = await BusinessPartner.findAll({
+      attributes: [
+        'region',
+        [sequelize.fn('COUNT', sequelize.col('business_partner_key')), 'count']
+      ],
+      where: { business_partner_status: 'active' },
+      group: ['region'],
+      raw: true
+    });
+
+    res.status(RESPONSE_CODES.OK).json({
+      statusCode: RESPONSE_CODES.OK,
+      httpStatus: RESPONSE_STATUS.OK,
+      result: results
+    });
+  } catch (error) {
+    console.error("Get Users By Region Error:", error);
+    res.status(500).json({ message: "Error fetching users by region" });
+  }
+};
+
+/**
+ * Get count of users grouped by customer channel.
+ */
+const getUsersByChannel = async (req, res) => {
+  try {
+    const results = await BusinessPartner.findAll({
+      attributes: [
+        ['customer_channel', 'channel'],
+        [sequelize.fn('COUNT', sequelize.col('business_partner_key')), 'count']
+      ],
+      where: { business_partner_status: 'active' },
+      group: ['customer_channel'],
+      raw: true
+    });
+
+    res.status(RESPONSE_CODES.OK).json({
+      statusCode: RESPONSE_CODES.OK,
+      httpStatus: RESPONSE_STATUS.OK,
+      result: results
+    });
+  } catch (error) {
+    console.error("Get Users By Channel Error:", error);
+    res.status(500).json({ message: "Error fetching users by channel" });
+  }
+};
+
 module.exports = {
   getDashboardStats,
   getActivityTrend,
-  getRegions
+  getRegions,
+  getUsersByRegion,
+  getUsersByChannel
 };

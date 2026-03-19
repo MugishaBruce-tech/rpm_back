@@ -47,6 +47,11 @@ const BusinessPartnerEmptiesLoan = sequelize.define(
       type: DataTypes.STRING(128),
       allowNull: false,
     },
+    CLIENT_ID: {
+      type: DataTypes.UUID,
+      allowNull: true,
+      unique: true,
+    },
     created_at: {
       type: DataTypes.DATE,
       allowNull: false,
@@ -61,7 +66,9 @@ const BusinessPartnerEmptiesLoan = sequelize.define(
   {
     freezeTableName: true,
     tableName: "business_partner_empties_loan",
-    timestamps: false,
+    timestamps: true,
+    createdAt: "created_at",
+    updatedAt: "updated_at",
   }
 );
 
