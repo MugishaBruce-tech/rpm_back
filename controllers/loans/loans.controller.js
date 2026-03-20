@@ -10,7 +10,7 @@ const { Op } = require("sequelize");
 const createLoan = async (req, res) => {
   try {
     const { business_partner_key: requesterPartnerKey, user_ad: USER_AD } = req.user;
-    const { 
+    const {
       TO_PARTNER_KEY, MATERIAL_KEY, QUANTITY, EXTERNAL_PARTY_NAME,
       material_key, bp_loaned_to_business_partner_key, bp_loan_qty_in_base_uom, external_party_name,
       business_partner_key: lenderKey, CLIENT_ID
@@ -44,10 +44,10 @@ const createLoan = async (req, res) => {
 
     // Security check for SUB_D: Must be either party
     if (req.conditions.business_partner_key) {
-        if (finalLenderKey !== req.conditions.business_partner_key && 
-            finalBorrowerKey !== req.conditions.business_partner_key) {
-            return res.status(RESPONSE_CODES.FORBIDDEN).json({ message: "Access denied: You can only create loans involving yourself" });
-        }
+      if (finalLenderKey !== req.conditions.business_partner_key &&
+        finalBorrowerKey !== req.conditions.business_partner_key) {
+        return res.status(RESPONSE_CODES.FORBIDDEN).json({ message: "Access denied: You can only create loans involving yourself" });
+      }
     }
 
     const loan = await BusinessPartnerEmptiesLoan.create({
@@ -65,31 +65,37 @@ const createLoan = async (req, res) => {
     const material = await Material.findByPk(finalMaterialKey);
     const lender = finalLenderKey ? await BusinessPartner.findByPk(finalLenderKey) : null;
     const borrower = finalBorrowerKey ? await BusinessPartner.findByPk(finalBorrowerKey) : null;
-    
+
     // If it's an external loan (starts as 'open'), update stock immediately
     const StockService = require("../../services/stock.service");
     if ((EXTERNAL_PARTY_NAME || external_party_name)) {
-       if (finalLenderKey && !finalBorrowerKey) {
-          await StockService.updateStock(finalLenderKey, finalMaterialKey, -parseFloat(QUANTITY || bp_loan_qty_in_base_uom), USER_AD);
-       } else if (finalBorrowerKey && !finalLenderKey) {
-          await StockService.updateStock(finalBorrowerKey, finalMaterialKey, parseFloat(QUANTITY || bp_loan_qty_in_base_uom), USER_AD);
-       }
+      // Check if it's explicitly marked as an external receiving action
+      const isReceiving = req.body.is_external || req.body.direction === 'RECEIVING' || req.body.direction === 'RECEIVE';
+      const qty = parseFloat(QUANTITY || bp_loan_qty_in_base_uom);
+
+      if (finalLenderKey && !finalBorrowerKey) {
+        // If receiving, add to stock. If giving (default lender behavior), subtract from stock.
+        const finalQty = isReceiving ? qty : -qty;
+        await StockService.updateStock(finalLenderKey, finalMaterialKey, finalQty, USER_AD);
+      } else if (finalBorrowerKey && !finalLenderKey) {
+        await StockService.updateStock(finalBorrowerKey, finalMaterialKey, qty, USER_AD);
+      }
     }
 
     if (loan.bp_loan_status === "pending") {
-       const recipientPartner = lenderKey ? lender : borrower; 
-       const requesterName = req.user.name || req.user.business_partner_name || "A user";
-       
-       if (recipientPartner && recipientPartner.user_ad) {
-          const MailService = require("../../services/mail.service");
-          MailService.sendLoanNotificationEmail(
-            recipientPartner.user_ad,
-            recipientPartner.business_partner_name,
-            requesterName,
-            material?.material_name2 || material?.material_description || "Material",
-            QUANTITY || bp_loan_qty_in_base_uom
-          ).catch(err => console.error("Async Mail Error:", err));
-       }
+      const recipientPartner = lenderKey ? lender : borrower;
+      const requesterName = req.user.name || req.user.business_partner_name || "A user";
+
+      if (recipientPartner && recipientPartner.user_ad) {
+        const MailService = require("../../services/mail.service");
+        MailService.sendLoanNotificationEmail(
+          recipientPartner.user_ad,
+          recipientPartner.business_partner_name,
+          requesterName,
+          material?.material_name2 || material?.material_description || "Material",
+          QUANTITY || bp_loan_qty_in_base_uom
+        ).catch(err => console.error("Async Mail Error:", err));
+      }
     }
 
     if (EXTERNAL_PARTY_NAME || external_party_name) {
@@ -113,18 +119,18 @@ const updateLoanStatus = async (req, res) => {
   const t = await sequelize.transaction();
   try {
     const { id: loanId } = req.params;
-    const { STATUS, status: lowerStatus } = req.body; 
+    const { STATUS, status: lowerStatus } = req.body;
     const { user_ad: USER_AD } = req.user;
 
     const targetStatus = STATUS || lowerStatus;
 
     // Find loan and verify permission (implicitly handled via conditions if we joined lender/borrower)
-    const loan = await BusinessPartnerEmptiesLoan.findByPk(loanId, { 
-       include: [
-         { model: BusinessPartner, as: "lender" },
-         { model: BusinessPartner, as: "borrower" }
-       ],
-       transaction: t 
+    const loan = await BusinessPartnerEmptiesLoan.findByPk(loanId, {
+      include: [
+        { model: BusinessPartner, as: "lender" },
+        { model: BusinessPartner, as: "borrower" }
+      ],
+      transaction: t
     });
 
     if (!loan) {
@@ -133,56 +139,71 @@ const updateLoanStatus = async (req, res) => {
 
     // Check if the user has permission to manage this specific loan (Region/Partner check)
     if (req.conditions.business_partner_key) {
-       // SUB_D: Must be either the lender or the borrower
-       if (loan.business_partner_key !== req.conditions.business_partner_key && 
-           loan.bp_loaned_to_business_partner_key !== req.conditions.business_partner_key) {
-          return res.status(RESPONSE_CODES.FORBIDDEN).json({ message: "Access denied: You can only manage your own loans" });
-       }
+      // SUB_D: Must be either the lender or the borrower
+      if (loan.business_partner_key !== req.conditions.business_partner_key &&
+        loan.bp_loaned_to_business_partner_key !== req.conditions.business_partner_key) {
+        return res.status(RESPONSE_CODES.FORBIDDEN).json({ message: "Access denied: You can only manage your own loans" });
+      }
     } else if (req.conditions.region) {
-       const lenderRegion = loan.lender?.region;
-       const borrowerRegion = loan.borrower?.region;
-       // DDM can only manage loans where BOTH parties are in their region
-       if (lenderRegion !== req.conditions.region || borrowerRegion !== req.conditions.region) {
+      const lenderRegion = loan.lender?.region;
+      const borrowerRegion = loan.borrower?.region;
+
+      if (loan.external_party_name) {
+        // For external transactions, we only enforce that the internal participating point is in the manager's region
+        const internalRegion = loan.bp_loaned_to_business_partner_key ? borrowerRegion : lenderRegion;
+        if (internalRegion !== req.conditions.region) {
+          return res.status(RESPONSE_CODES.FORBIDDEN).json({ message: "Access denied: The internal party must be in your region" });
+        }
+      } else {
+        // For fully internal peer-to-peer loans, both must belong to the manager's region
+        if (lenderRegion !== req.conditions.region || borrowerRegion !== req.conditions.region) {
           return res.status(RESPONSE_CODES.FORBIDDEN).json({ message: "Access denied: Both lender and borrower must be in your region" });
-       }
+        }
+      }
     }
 
     const previousStatus = loan.bp_loan_status;
-    
+
     if (targetStatus === "open" && previousStatus === "pending") {
-       await StockService.updateStock(loan.business_partner_key, loan.material_key, -parseFloat(loan.bp_loan_qty_in_base_uom), USER_AD, null, t);
-       if (loan.bp_loaned_to_business_partner_key) {
-         await StockService.updateStock(loan.bp_loaned_to_business_partner_key, loan.material_key, parseFloat(loan.bp_loan_qty_in_base_uom), USER_AD, null, t);
-       }
+      await StockService.updateStock(loan.business_partner_key, loan.material_key, -parseFloat(loan.bp_loan_qty_in_base_uom), USER_AD, null, t);
+      if (loan.bp_loaned_to_business_partner_key) {
+        await StockService.updateStock(loan.bp_loaned_to_business_partner_key, loan.material_key, parseFloat(loan.bp_loan_qty_in_base_uom), USER_AD, null, t);
+      }
     }
-    
+
     if (targetStatus === "closed" && previousStatus === "open") {
-       const returnQty = req.body.returnQty ? parseFloat(req.body.returnQty) : parseFloat(loan.bp_loan_qty_in_base_uom);
-       
-       if (returnQty <= 0) {
-         return res.status(RESPONSE_CODES.BAD_REQUEST).json({ message: "Invalid return quantity" });
-       }
-       if (returnQty > parseFloat(loan.bp_loan_qty_in_base_uom)) {
-         return res.status(RESPONSE_CODES.BAD_REQUEST).json({ message: "Return quantity exceeds loan balance" });
-       }
+      const returnQty = req.body.returnQty ? parseFloat(req.body.returnQty) : parseFloat(loan.bp_loan_qty_in_base_uom);
 
-       // Transfer back for the returned amount
-       if (loan.bp_loaned_to_business_partner_key) {
-         await StockService.updateStock(loan.bp_loaned_to_business_partner_key, loan.material_key, -returnQty, USER_AD, null, t);
-       }
-       await StockService.updateStock(loan.business_partner_key, loan.material_key, returnQty, USER_AD, null, t);
+      if (returnQty <= 0) {
+        return res.status(RESPONSE_CODES.BAD_REQUEST).json({ message: "Invalid return quantity" });
+      }
+      if (returnQty > parseFloat(loan.bp_loan_qty_in_base_uom)) {
+        return res.status(RESPONSE_CODES.BAD_REQUEST).json({ message: "Return quantity exceeds loan balance" });
+      }
 
-       // Update loan quantity or close it
-       const newQty = parseFloat(loan.bp_loan_qty_in_base_uom) - returnQty;
-       if (newQty <= 0) {
-         loan.bp_loan_status = "closed";
-       } else {
-         loan.bp_loan_qty_in_base_uom = newQty;
-         loan.bp_loan_status = "open"; // Keep it open
-       }
+      // Transfer back for the returned amount
+      if (!loan.bp_loaned_to_business_partner_key && loan.external_party_name) {
+        // External Transaction Return: User returning stock TO the external party (deduct their stock)
+        await StockService.updateStock(loan.business_partner_key, loan.material_key, -returnQty, USER_AD, null, t);
+      } else {
+        // Internal Transaction Return
+        if (loan.bp_loaned_to_business_partner_key) {
+          await StockService.updateStock(loan.bp_loaned_to_business_partner_key, loan.material_key, -returnQty, USER_AD, null, t);
+        }
+        await StockService.updateStock(loan.business_partner_key, loan.material_key, returnQty, USER_AD, null, t);
+      }
+
+      // Update loan quantity or close it
+      const newQty = parseFloat(loan.bp_loan_qty_in_base_uom) - returnQty;
+      if (newQty <= 0) {
+        loan.bp_loan_status = "closed";
+      } else {
+        loan.bp_loan_qty_in_base_uom = newQty;
+        loan.bp_loan_status = "open"; // Keep it open
+      }
     } else {
-       // Normal status update
-       loan.bp_loan_status = targetStatus;
+      // Normal status update
+      loan.bp_loan_status = targetStatus;
     }
 
     loan.bp_loan_status_date_time = new Date();
@@ -191,7 +212,7 @@ const updateLoanStatus = async (req, res) => {
     const material = await Material.findByPk(loan.material_key, { transaction: t });
     const lenderName = loan.lender?.business_partner_name || 'Unknown';
     const borrowerName = loan.borrower?.business_partner_name || (loan.external_party_name || 'Unknown');
-    
+
     req.audit_info = `Updated Loan #${loan.bp_loan_key} Status to ${loan.bp_loan_status.toUpperCase()}: ${loan.bp_loan_qty_in_base_uom} ${material?.material_description} (${lenderName} → ${borrowerName})`;
 
     await t.commit();
@@ -200,12 +221,12 @@ const updateLoanStatus = async (req, res) => {
   } catch (error) {
     if (t) await t.rollback();
     console.error("Update Loan Status Error:", error);
-    
+
     // Check if it's a stock error from StockService
     if (error.message?.includes('Insufficient stock')) {
-       return res.status(RESPONSE_CODES.BAD_REQUEST).json({ message: error.message });
+      return res.status(RESPONSE_CODES.BAD_REQUEST).json({ message: error.message });
     }
-    
+
     res.status(RESPONSE_CODES.INTERNAL_SERVER_ERROR).json({ message: "Error updating loan status: " + error.message });
   }
 };
@@ -213,37 +234,37 @@ const updateLoanStatus = async (req, res) => {
 const getLoans = async (req, res) => {
   try {
     const { business_partner_key: currentPartnerKey } = req.user;
-    
+
     let whereClause = {};
 
     // 0. Handle specific partner filtering (requested via query)
     const partnerKeyQuery = req.query.partnerKey;
-    
+
     // 1. If restricted to SELF
     if (req.conditions.business_partner_key) {
-       whereClause[Op.or] = [
-         { business_partner_key: req.conditions.business_partner_key },
-         { bp_loaned_to_business_partner_key: req.conditions.business_partner_key }
-       ];
-    } 
+      whereClause[Op.or] = [
+        { business_partner_key: req.conditions.business_partner_key },
+        { bp_loaned_to_business_partner_key: req.conditions.business_partner_key }
+      ];
+    }
     // 2. If restricted to REGION
     else if (req.conditions.region) {
-       whereClause = {
-          [Op.or]: [
-             { '$lender.region$': req.conditions.region },
-             { '$borrower.region$': req.conditions.region }
-          ]
-       };
+      whereClause = {
+        [Op.or]: [
+          { '$lender.region$': req.conditions.region },
+          { '$borrower.region$': req.conditions.region }
+        ]
+      };
 
-       // If a specific partner is requested, add that to the filter
-       if (partnerKeyQuery) {
-         whereClause[Op.and] = {
-           [Op.or]: [
-             { business_partner_key: partnerKeyQuery },
-             { bp_loaned_to_business_partner_key: partnerKeyQuery }
-           ]
-         };
-       }
+      // If a specific partner is requested, add that to the filter
+      if (partnerKeyQuery) {
+        whereClause[Op.and] = {
+          [Op.or]: [
+            { business_partner_key: partnerKeyQuery },
+            { bp_loaned_to_business_partner_key: partnerKeyQuery }
+          ]
+        };
+      }
     }
     // 3. Global - but still allow specific partner filtering
     else if (partnerKeyQuery) {

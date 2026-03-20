@@ -58,6 +58,7 @@ const user_provider = require("./routes/user/user_provider");
 const dashboard_provider = require("./routes/dashboard/dashboard_provider");
 const audit_provider = require("./routes/audit/audit_provider");
 const sync_provider = require("./routes/sync/sync_provider");
+const external_distributors_provider = require("./routes/external_distributors/external_distributors_provider");
 
 // Base Route
 app.get("/", (req, res) => {
@@ -73,6 +74,7 @@ app.use("/user", user_provider);
 app.use("/dashboard", dashboard_provider);
 app.use("/audit", audit_provider);
 app.use("/sync", sync_provider);
+app.use("/external-distributors", external_distributors_provider);
 
 // 404 handler
 app.all("*", (req, res) => {
