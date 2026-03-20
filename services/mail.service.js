@@ -25,11 +25,8 @@ class MailService {
   }
 
   getLogoAttachment() {
-    return {
-      filename: 'logo.png',
-      path: this.logoPath,
-      cid: 'heineken_logo'
-    };
+    // Attachment removed to prevent "logo chips" in email previews
+    return null;
   }
 
   /**
@@ -44,9 +41,9 @@ class MailService {
       subject: "Welcome to BRARUDI RPM Tracker - Your Account Credentials",
       html: `
         <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
-          <div style="background-color: #216730; padding: 30px; text-align: center;">
-            <img src="cid:heineken_logo" alt="logo" style="height: 60px; margin-bottom: 10px;" />
-            <h1 style="color: white; margin: 0; font-size: 24px;">RPM Tracker</h1>
+          <div style="background-color: #216730; padding: 25px; text-align: center;">
+            <div style="color: white; font-weight: 900; font-size: 28px; letter-spacing: 2px; text-transform: uppercase;">BRARUDI</div>
+            <div style="color: rgba(255,255,255,0.7); font-size: 12px; font-weight: bold; margin-top: 5px; letter-spacing: 4px;">RPM TRACKER</div>
           </div>
           <div style="padding: 40px; background-color: #ffffff; color: #1e293b;">
             <h2 style="color: #1e293b; margin-top: 0;">Account Created Successfully</h2>
@@ -69,7 +66,7 @@ class MailService {
           </div>
         </div>
       `,
-      attachments: [this.getLogoAttachment()]
+      attachments: []
     };
 
     try {
@@ -94,8 +91,8 @@ class MailService {
       html: `
         <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 500px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
           <div style="background-color: #216730; padding: 20px; text-align: center;">
-            <img src="cid:heineken_logo" alt="logo" style="height: 50px; margin-bottom: 5px;" />
-            <h1 style="color: white; margin: 0; font-size: 20px;">Verification Required</h1>
+            <div style="color: white; font-weight: 900; font-size: 24px; letter-spacing: 2px; text-transform: uppercase;">BRARUDI</div>
+            <h1 style="color: rgba(255,255,255,0.7); margin: 0; font-size: 14px; letter-spacing: 3px;">VERIFICATION REQUIRED</h1>
           </div>
           <div style="padding: 30px; background-color: #ffffff; color: #1e293b; text-align: center;">
             <p>Hello <strong>${name}</strong>,</p>
@@ -112,7 +109,7 @@ class MailService {
           </div>
         </div>
       `,
-      attachments: [this.getLogoAttachment()]
+      attachments: []
     };
 
     try {
@@ -137,9 +134,9 @@ class MailService {
       subject: "New Loan Request - Action Required",
       html: `
         <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
-          <div style="background-color: #216730; padding: 30px; text-align: center;">
-            <img src="cid:heineken_logo" alt="logo" style="height: 60px; margin-bottom: 10px;" />
-            <h1 style="color: white; margin: 0; font-size: 24px;">New Loan Request</h1>
+          <div style="background-color: #216730; padding: 25px; text-align: center;">
+            <div style="color: white; font-weight: 900; font-size: 24px; letter-spacing: 2px; text-transform: uppercase;">BRARUDI</div>
+            <h1 style="color: rgba(255,255,255,0.7); margin: 0; font-size: 16px; letter-spacing: 1px;">NEW LOAN REQUEST</h1>
           </div>
           <div style="padding: 40px; background-color: #ffffff; color: #1e293b;">
             <h2 style="color: #1e293b; margin-top: 0;">Loan Approval Pending</h2>
@@ -163,7 +160,7 @@ class MailService {
           </div>
         </div>
       `,
-      attachments: [this.getLogoAttachment()]
+      attachments: []
     };
 
     try {
