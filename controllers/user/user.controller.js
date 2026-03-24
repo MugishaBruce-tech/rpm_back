@@ -318,6 +318,8 @@ const createUser = async (req, res) => {
       generatedPassword
     ).catch(err => console.error("Could not send welcome email:", err));
 
+    req.audit_info = `Created user "${business_partner_name}" (${user_ad}) — profile: ${selectedProfile.CODE_PROFIL}`;
+
     res.status(RESPONSE_CODES.CREATED).json({
       statusCode: RESPONSE_CODES.CREATED,
       httpStatus: RESPONSE_STATUS.CREATED,
@@ -427,6 +429,10 @@ const updateUser = async (req, res) => {
       });
     }
 
+    const updatedName = isInternal ? user.name : user.business_partner_name;
+    const updatedEmail = isInternal ? user.email : user.user_ad;
+    req.audit_info = `Updated user "${updatedName}" (${updatedEmail})`;
+
     res.status(RESPONSE_CODES.OK).json({
       statusCode: RESPONSE_CODES.OK,
       httpStatus: RESPONSE_STATUS.OK,
@@ -477,6 +483,10 @@ const deleteUser = async (req, res) => {
         message: "User not found or access denied",
       });
     }
+
+    const deletedName = isInternal ? user.name : user.business_partner_name;
+    const deletedEmail = isInternal ? user.email : user.user_ad;
+    req.audit_info = `Deleted user "${deletedName}" (${deletedEmail})`;
 
     await user.destroy();
 
@@ -666,6 +676,10 @@ const resetPassword = async (req, res) => {
     await user.update({
       password: hashedPassword,
     });
+
+    const resetName = isInternal ? user.name : user.business_partner_name;
+    const resetEmail = isInternal ? user.email : user.user_ad;
+    req.audit_info = `Reset password for user "${resetName}" (${resetEmail})`;
 
     res.status(RESPONSE_CODES.OK).json({
       statusCode: RESPONSE_CODES.OK,

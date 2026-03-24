@@ -9,7 +9,8 @@ const validate = (schema) => (req, res, next) => {
     schema.parse(req.body);
     next();
   } catch (error) {
-    const formattedErrors = error.errors.map(err => ({
+    const issues = error.issues ?? error.errors ?? [];
+    const formattedErrors = issues.map(err => ({
       path: err.path.join('.'),
       message: err.message
     }));
