@@ -18,9 +18,6 @@ const authorize = (requiredPermission) => {
     const userPermissions = req.user.profil.permissions.map((p) => p.code);
     const permissionsArray = Array.isArray(requiredPermission) ? requiredPermission : [requiredPermission];
 
-    console.log(`[AUTH] Checking permissions for ${req.user.email || req.user.user_ad} (${req.user.profil.CODE_PROFIL})`);
-    console.log(`[AUTH] Required: [${permissionsArray.join(", ")}], User has: [${userPermissions.join(", ")}]`);
-
     const hasPermission = permissionsArray.some((p) => userPermissions.includes(p));
 
     if (!hasPermission) {

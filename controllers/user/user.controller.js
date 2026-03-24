@@ -165,7 +165,7 @@ const getUsers = async (req, res) => {
 const getMetadata = async (req, res) => {
   try {
     const profils = await Profil.findAll({
-      attributes: ['PROFIL_ID', 'CODE_PROFIL']
+      attributes: ['profil_id', 'CODE_PROFIL', 'LIBELLE_PROFIL']
     });
     const legalEntities = await LegalEntity.findAll();
     const sequelize = require("../../utils/sequelize");
@@ -178,20 +178,17 @@ const getMetadata = async (req, res) => {
           const type = results[0].Type;
           const match = type.match(/^enum\((.*)\)$/);
           if (match && match[1]) {
-            // Split by comma BUT handle potential spaces after commas
             return match[1].split(',').map(v => v.replace(/'/g, "").trim());
           }
         }
-        // Fallback to model definition if DB query fails to parse
-        return BusinessPartner.rawAttributes[column]?.values || [];
+        return [];
       } catch (err) {
         console.error(`Error fetching enum for ${column}:`, err);
-        // Reliable fallback to model definition
-        return BusinessPartner.rawAttributes[column]?.values || [];
+        return [];
       }
     };
 
-    // Fetch dynamic values
+    // Fetch dynamic values directly from DB schema
     const dbRegions = await getEnumValues('region');
     const dbTypes = await getEnumValues('business_partner_type');
     const dbChannels = await getEnumValues('customer_channel');
@@ -204,9 +201,9 @@ const getMetadata = async (req, res) => {
         profils, 
         legalEntities,
         regions: dbRegions.length > 0 ? dbRegions : ["North", "South", "West", "Est"],
-        businessPartnerTypes: dbTypes,
-        customerChannels: dbChannels,
-        statuses: dbStatuses
+        businessPartnerTypes: dbTypes.length > 0 ? dbTypes : ["customer", "vendor", "TEST"],
+        customerChannels: dbChannels.length > 0 ? dbChannels : ["sub-distributor", "distributor"],
+        statuses: dbStatuses.length > 0 ? dbStatuses : ["active", "inactive", "blocked"]
       },
     });
   } catch (error) {
@@ -626,56 +623,60 @@ const getInactiveUsers = async (req, res) => {
 };
 
 /**
- * Reset/Update a user's password (by admin/agent)
+ * Reset password for a user
  */
 const resetPassword = async (req, res) => {
   try {
     const { id } = req.params;
-    const { is_internal } = req.query;
-    const { newPassword } = req.body;
+    const { is_internal, new_password } = req.query;
 
-    if (!id || !newPassword) {
+    if (!id || !new_password) {
       return res.status(RESPONSE_CODES.UNPROCESSABLE_ENTITY).json({
-        message: "User ID and New Password are required",
+        message: "User ID and new password are required",
       });
     }
 
-    let user;
     const isInternal = is_internal === 'true' || is_internal === true;
     const queryConditions = { ...req.conditions };
     if (isInternal) {
       delete queryConditions.business_partner_key;
     }
 
+    let user;
     if (isInternal) {
-      user = await BrarudiUser.findOne({ where: { id, ...queryConditions } });
+      user = await BrarudiUser.findOne({
+        where: { id, ...queryConditions }
+      });
     } else {
-      user = await BusinessPartner.findOne({ where: { business_partner_key: id, ...queryConditions } });
+      user = await BusinessPartner.findOne({
+        where: { business_partner_key: id, ...queryConditions }
+      });
     }
 
     if (!user) {
-      return res.status(RESPONSE_CODES.NOT_FOUND).json({ message: "User not found or access denied" });
+      return res.status(RESPONSE_CODES.NOT_FOUND).json({
+        message: "User not found or access denied",
+      });
     }
 
-    const hashedPassword = await bcrypt.hash(newPassword, 10);
-    await user.update({ password: hashedPassword });
+    // Hash the new password
+    const hashedPassword = await bcrypt.hash(new_password, 10);
 
-    // Send email notification
-    const email = isInternal ? user.email : user.user_ad;
-    const name = isInternal ? user.name : user.business_partner_name;
-    
-    mailService.sendPasswordResetEmail(email, name, newPassword).catch(err => 
-      console.error("Could not send password reset email:", err)
-    );
+    // Update password
+    await user.update({
+      password: hashedPassword,
+    });
 
-    res.status(RESPONSE_CODES.OK).json({ 
+    res.status(RESPONSE_CODES.OK).json({
       statusCode: RESPONSE_CODES.OK,
       httpStatus: RESPONSE_STATUS.OK,
-      message: "Password updated successfully" 
+      message: "Password reset successfully",
     });
   } catch (error) {
     console.error("Reset Password Error:", error);
-    res.status(RESPONSE_CODES.INTERNAL_SERVER_ERROR).json({ message: "Internal server error" });
+    res.status(RESPONSE_CODES.INTERNAL_SERVER_ERROR).json({
+      message: "Internal server error",
+    });
   }
 };
 
@@ -685,7 +686,7 @@ module.exports = {
   createUser,
   updateUser,
   deleteUser,
+  resetPassword,
   getUserLogs,
   getInactiveUsers,
-  resetPassword,
 };

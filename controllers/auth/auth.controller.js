@@ -253,14 +253,27 @@ const verifyEmailOTP = async (req, res) => {
       is_internal
     };
 
+    // Cookie options
+    const cookieOptions = {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "Lax",
+      path: "/",
+    };
+
+    const accessTokenMaxAge = (parseInt(process.env.APP_ACCESS_TOKEN_MAX_AGE) || 3600) * 1000;
+    const refreshTokenMaxAge = (parseInt(process.env.REFRESH_TOKEN_MAX_AGE) || 86400) * 1000;
+
+    res.cookie("accessToken", TOKEN, { ...cookieOptions, maxAge: accessTokenMaxAge });
+    res.cookie("refreshToken", REFRESH_TOKEN, { ...cookieOptions, maxAge: refreshTokenMaxAge });
+
     res.status(RESPONSE_CODES.OK).json({ 
       statusCode: RESPONSE_CODES.OK,
       httpStatus: RESPONSE_STATUS.OK,
       message: "Security verification successful",
       result: {
-        ...resultUser,
-        TOKEN,
-        REFRESH_TOKEN 
+        ...resultUser
+        // TOKEN and REFRESH_TOKEN are now in cookies
       }
     });
   } catch (error) {
@@ -356,7 +369,37 @@ const verifyMFA = async (req, res) => {
         
         req.user = user.toJSON(); // Attach user for audit logging
         
-        res.status(200).json({ TOKEN, REFRESH_TOKEN, message: "MFA Verified" });
+        // Cookie options
+        const cookieOptions = {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === "production",
+          sameSite: "Lax",
+          path: "/",
+        };
+
+        const accessTokenMaxAge = (parseInt(process.env.APP_ACCESS_TOKEN_MAX_AGE) || 3600) * 1000;
+        const refreshTokenMaxAge = (parseInt(process.env.REFRESH_TOKEN_MAX_AGE) || 86400) * 1000;
+
+        res.cookie("accessToken", TOKEN, { ...cookieOptions, maxAge: accessTokenMaxAge });
+        res.cookie("refreshToken", REFRESH_TOKEN, { ...cookieOptions, maxAge: refreshTokenMaxAge });
+
+        // Fix: Return user data so frontend doesn't crash
+        const userData = user.toJSON();
+        delete userData.password;
+        
+        const resultUser = {
+          ...userData,
+          id: user.business_partner_key,
+          name: userData.business_partner_name,
+          email: userData.user_ad,
+          role: userData.profil?.CODE_PROFIL,
+          is_internal: false
+        };
+
+        res.status(200).json({ 
+          message: "MFA Verified",
+          result: resultUser
+        });
     } catch (error) {
         res.status(401).json({ message: "MFA Verification failed" });
     }
@@ -402,8 +445,22 @@ const googleCallback = async (req, res) => {
       { where: { business_partner_key: user.business_partner_key } }
     );
 
-    // Redirect to frontend with tokens in fragment
-    res.redirect(`${FRONTEND_URL}#token=${TOKEN}&refresh=${REFRESH_TOKEN}`);
+    // Cookie options
+    const cookieOptions = {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "Lax",
+      path: "/",
+    };
+
+    const accessTokenMaxAge = (parseInt(process.env.APP_ACCESS_TOKEN_MAX_AGE) || 3600) * 1000;
+    const refreshTokenMaxAge = (parseInt(process.env.REFRESH_TOKEN_MAX_AGE) || 86400) * 1000;
+
+    res.cookie("accessToken", TOKEN, { ...cookieOptions, maxAge: accessTokenMaxAge });
+    res.cookie("refreshToken", REFRESH_TOKEN, { ...cookieOptions, maxAge: refreshTokenMaxAge });
+
+    // Redirect to frontend without sensitive tokens in URL
+    res.redirect(`${FRONTEND_URL}`);
   } catch (error) {
     console.error("Google Auth Error:", error);
     const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
@@ -420,6 +477,9 @@ const logout = async (req, res) => {
         { where: { refresh_token: REFRESH_TOKEN } }
       );
     }
+
+    res.clearCookie("accessToken");
+    res.clearCookie("refreshToken");
 
     res.status(RESPONSE_CODES.OK).json({
       statusCode: RESPONSE_CODES.OK,

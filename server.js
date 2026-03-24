@@ -6,6 +6,8 @@ const path = require("path");
 const cors = require("cors");
 const fileUpload = require("express-fileupload");
 const passport = require("./config/passport");
+const helmet = require("helmet");
+const cookieParser = require("cookie-parser");
 
 // Environment Variables
 dotenv.config();
@@ -13,8 +15,15 @@ dotenv.config();
 const app = express();
 const port = process.env.PORT || 8082;
 const auditLogger = require("./middleware/auditLogger");
+const { globalLimiter } = require("./middleware/rateLimiter");
+const errorHandler = require("./middleware/errorHandler");
 
 // Middleware
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" } // Required if sharing resources like images across domains
+}));
+app.use(cookieParser());
+
 const allowedOrigins = [
   "http://localhost:5173",
   "http://localhost:4173",
@@ -40,6 +49,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use(fileUpload());
 app.use(passport.initialize());
 app.use(auditLogger); // Global logging (will only log authenticated actions via req.user)
+app.use(globalLimiter); // Protect API from general abuse
 app.use("/public", express.static(path.join(__dirname, "public")));
 
 // Constants
@@ -84,6 +94,9 @@ app.all("*", (req, res) => {
     message: "Route not found",
   });
 });
+
+// Global error handler (must be last!)
+app.use(errorHandler);
 
 const server = http.createServer(app);
 

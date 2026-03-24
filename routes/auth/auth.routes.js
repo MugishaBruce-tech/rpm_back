@@ -2,9 +2,12 @@ const express = require("express");
 const passport = require("passport");
 const auth_controller = require("../../controllers/auth/auth.controller");
 const requireAuth = require("../../middleware/requireAuth");
+const { authLimiter } = require("../../middleware/rateLimiter");
+const validate = require("../../middleware/validate");
+const { loginSchema, otpSchema, mfaVerifySchema } = require("../../schemas/auth.schema");
 const auth_routes = express.Router();
 
-auth_routes.post("/login", auth_controller.login);
+auth_routes.post("/login", authLimiter, validate(loginSchema), auth_controller.login);
 // public distributor list (used by frontend before login)
 const authorize = require("../../middleware/authorize");
 auth_routes.get("/distributors", requireAuth, authorize(['USER_VIEW_ALL', 'USER_VIEW_REGION']), auth_controller.listDistributors);
@@ -17,8 +20,8 @@ auth_routes.get("/google/callback", passport.authenticate("google", { session: f
 
 // MFA
 auth_routes.get("/mfa/setup", requireAuth, auth_controller.setupMFA);
-auth_routes.post("/mfa/verify", auth_controller.verifyMFA);
-auth_routes.post("/verify-otp", auth_controller.verifyEmailOTP);
-auth_routes.post("/resend-otp", auth_controller.resendOTP);
+auth_routes.post("/mfa/verify", authLimiter, validate(mfaVerifySchema), auth_controller.verifyMFA);
+auth_routes.post("/verify-otp", authLimiter, validate(otpSchema), auth_controller.verifyEmailOTP);
+auth_routes.post("/resend-otp", authLimiter, auth_controller.resendOTP);
 
 module.exports = auth_routes;

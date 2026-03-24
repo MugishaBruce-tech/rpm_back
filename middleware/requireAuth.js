@@ -8,8 +8,10 @@ const RESPONSE_STATUS = require("../constants/RESPONSE_STATUS");
 
 const requireAuth = async (req, res, next) => {
   try {
-    const authHeader = req.headers.authorization;
-    const token = authHeader && authHeader.split(" ")[1];
+    // 1. Try to get token from cookies (Our new secure way)
+    // 2. Fallback to Authorization header (For backward compatibility / legacy)
+    const token = req.cookies?.accessToken || 
+                 (req.headers.authorization && req.headers.authorization.split(" ")[1]);
 
     if (!token) {
       return res.status(RESPONSE_CODES.UNAUTHORIZED).json({
