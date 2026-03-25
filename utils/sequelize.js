@@ -12,6 +12,7 @@ const dbConfig = {
   password: String(process.env.DB_PASSWORD || ""),
   database: process.env.DB_NAME || "brarudi_rpm",
   port: process.env.DB_PORT || 3306,
+  ssl: process.env.DB_SSL === "true" ? { rejectUnauthorized: false } : null,
 };
 
 /**
@@ -24,6 +25,7 @@ const createDatabaseIfNotExists = async () => {
       user: dbConfig.user,
       password: dbConfig.password,
       port: dbConfig.port,
+      ssl: dbConfig.ssl,
     });
     await connection.query(`CREATE DATABASE IF NOT EXISTS \`${dbConfig.database}\`;`);
     await connection.end();
@@ -37,6 +39,9 @@ const sequelize = new Sequelize(dbConfig.database, dbConfig.user, dbConfig.passw
   host: dbConfig.host,
   port: dbConfig.port,
   dialect: "mysql",
+  dialectOptions: {
+    ssl: dbConfig.ssl,
+  },
   logging: false,
   define: {
     freezeTableName: true,
