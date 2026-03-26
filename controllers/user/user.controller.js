@@ -165,7 +165,7 @@ const getUsers = async (req, res) => {
 const getMetadata = async (req, res) => {
   try {
     const profils = await Profil.findAll({
-      attributes: ['profil_id', 'CODE_PROFIL', 'LIBELLE_PROFIL']
+      attributes: ['PROFIL_ID', 'CODE_PROFIL']
     });
     const legalEntities = await LegalEntity.findAll();
     const sequelize = require("../../utils/sequelize");
