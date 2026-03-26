@@ -253,11 +253,11 @@ const verifyEmailOTP = async (req, res) => {
       is_internal
     };
 
-    // Cookie options
+    // Cookie options - Updated for Cross-Domain support (Frontend + Render Backend)
     const cookieOptions = {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "Lax",
+      secure: true, // MUST be true for SameSite: "None"
+      sameSite: "None", // Required for cross-site cookie sharing
       path: "/",
     };
 
