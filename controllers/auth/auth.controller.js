@@ -272,8 +272,9 @@ const verifyEmailOTP = async (req, res) => {
       httpStatus: RESPONSE_STATUS.OK,
       message: "Security verification successful",
       result: {
-        ...resultUser
-        // TOKEN and REFRESH_TOKEN are now in cookies
+        ...resultUser,
+        TOKEN,
+        REFRESH_TOKEN
       }
     });
   } catch (error) {
@@ -398,7 +399,11 @@ const verifyMFA = async (req, res) => {
 
         res.status(200).json({ 
           message: "MFA Verified",
-          result: resultUser
+          result: {
+            ...resultUser,
+            TOKEN,
+            REFRESH_TOKEN
+          }
         });
     } catch (error) {
         res.status(401).json({ message: "MFA Verification failed" });
