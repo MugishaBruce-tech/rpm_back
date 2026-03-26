@@ -8,7 +8,7 @@ const RESPONSE_STATUS = require("../constants/RESPONSE_STATUS");
  * 100 requests every 15 minutes per IP.
  */
 const globalLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
+  windowMs: 15 * 60 * 1, // 15 minutes
   max: 500, // Limit each IP to 500 requests per windowMs
   standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
   legacyHeaders: false, // Disable the `X-RateLimit-*` headers
@@ -26,7 +26,7 @@ const globalLimiter = rateLimit({
  * 5 attempts every 15 minutes per IP.
  */
 const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
+  windowMs: 15 * 60 * 1, // 15 minutes
   max: 10, // Limit each IP to 10 requests per windowMs
   standardHeaders: true,
   legacyHeaders: false,
