@@ -14,6 +14,12 @@ dotenv.config();
 
 const app = express();
 const port = process.env.PORT || 8082;
+
+// Trust Render's reverse proxy so rate limiter can read real client IPs
+// Without this, express-rate-limit throws ERR_ERL_UNEXPECTED_X_FORWARDED_FOR
+if (process.env.NODE_ENV === 'production') {
+  app.set('trust proxy', 1);
+}
 const auditLogger = require("./middleware/auditLogger");
 const { globalLimiter } = require("./middleware/rateLimiter");
 const errorHandler = require("./middleware/errorHandler");
