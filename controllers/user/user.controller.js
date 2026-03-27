@@ -487,8 +487,22 @@ const deleteUser = async (req, res) => {
     });
   } catch (error) {
     console.error("Delete User Error:", error);
+
+    // Handle foreign key constraint errors
+    const dbError = error.original || error;
+    if (error.errno === 1451 || error.code === 'ER_ROW_IS_REFERENCED_2' || 
+        dbError.errno === 1451 || dbError.code === 'ER_ROW_IS_REFERENCED_2') {
+      return res.status(RESPONSE_CODES.UNPROCESSABLE_ENTITY).json({
+        statusCode: RESPONSE_CODES.UNPROCESSABLE_ENTITY,
+        httpStatus: RESPONSE_STATUS.UNPROCESSABLE_ENTITY,
+        message: "This partner has active records and cannot be deleted.",
+      });
+    }
+
     res.status(RESPONSE_CODES.INTERNAL_SERVER_ERROR).json({
-      message: "Internal server error",
+      statusCode: RESPONSE_CODES.INTERNAL_SERVER_ERROR,
+      httpStatus: RESPONSE_STATUS.INTERNAL_SERVER_ERROR,
+      message: "Unable to delete this partner. Please try again later.",
     });
   }
 };
