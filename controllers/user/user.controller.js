@@ -628,7 +628,16 @@ const getInactiveUsers = async (req, res) => {
 const resetPassword = async (req, res) => {
   try {
     const { id } = req.params;
-    const { is_internal, new_password } = req.query;
+    console.log('[resetPassword] ID:', id);
+    console.log('[resetPassword] Body:', req.body);
+    console.log('[resetPassword] Query:', req.query);
+
+    const bodyPassword = req.body.new_password || req.body.newPassword;
+    const queryPassword = req.query.new_password || req.query.newPassword;
+    const isInternalParam = req.body.is_internal !== undefined ? req.body.is_internal : req.query.is_internal;
+    
+    const new_password = bodyPassword || queryPassword;
+    console.log('[resetPassword] Extracted Password:', new_password ? 'REDACTED' : 'MISSING');
 
     if (!id || !new_password) {
       return res.status(RESPONSE_CODES.UNPROCESSABLE_ENTITY).json({
@@ -636,7 +645,7 @@ const resetPassword = async (req, res) => {
       });
     }
 
-    const isInternal = is_internal === 'true' || is_internal === true;
+    const isInternal = isInternalParam === 'true' || isInternalParam === true;
     const queryConditions = { ...req.conditions };
     if (isInternal) {
       delete queryConditions.business_partner_key;
