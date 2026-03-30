@@ -212,7 +212,7 @@ const getLoans = async (req, res) => {
     const loans = await BusinessPartnerEmptiesLoan.findAll({
       where: whereClause,
       include: [
-        { model: Material, as: "material", attributes: ["material_key", "global_material_id", "material_description"] },
+        { model: Material, as: "material", attributes: ["material_key", "global_material_id", "material_description", "material_name2"] },
         { model: BusinessPartner, as: "lender", attributes: ["business_partner_key", "business_partner_name", "region"] },
         { model: BusinessPartner, as: "borrower", attributes: ["business_partner_key", "business_partner_name", "region"] },
       ],
