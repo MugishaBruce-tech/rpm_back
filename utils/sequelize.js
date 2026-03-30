@@ -41,11 +41,29 @@ const sequelize = new Sequelize(dbConfig.database, dbConfig.user, dbConfig.passw
   dialect: "mysql",
   dialectOptions: {
     ssl: dbConfig.ssl,
+    connectTimeout: 10000,
   },
   logging: false,
   define: {
     freezeTableName: true,
     timestamps: false,
+  },
+  pool: {
+    max: 50,           // Maximum connections in pool (increased from 20)
+    min: 5,            // Minimum connections to maintain (increased from 2)
+    acquire: 60000,    // Wait up to 60s for a connection (doubled from 30s)
+    idle: 5000,        // Close idle connections after 5s (more aggressive recycling)
+    evict: 60000,      // Evict connection after 60s even if in use
+  },
+  retry: {
+    max: 5,            // Retry failed connection attempts (increased from 3)
+  },
+  dialectOptions: {
+    ...dbConfig.ssl ? { ssl: dbConfig.ssl } : {},
+    connectTimeout: 10000,
+    waitForConnections: true,
+    enableKeepAlive: true,
+    keepAliveInitialDelaySeconds: 0,
   },
 });
 

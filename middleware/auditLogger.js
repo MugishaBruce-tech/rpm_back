@@ -70,24 +70,27 @@ const auditLogger = async (req, res, next) => {
     return `${method} action on ${cleanPath}`;
   };
 
-  res.on("finish", async () => {
-    try {
-      if (req.user) {
-        // Use custom audit info if provided by controller, otherwise generate static action
-        const finalAction = req.audit_info || getHumanAction(method, path);
-        
-        await AuditLog.create({
-          business_partner_key: req.user.business_partner_key,
-          action: finalAction,
-          method: method,
-          path: path,
-          payload: isMutation ? JSON.stringify(req.body) : null,
-          ip_address: req.ip || req.connection.remoteAddress,
-          status_code: res.statusCode,
-        });
-      }
-    } catch (err) {
-      console.error("Audit log error:", err.message);
+  res.on("finish", () => {
+    // Fire-and-forget: Don't await, don't block the connection pool
+    // The response has already been sent to client, so audit logging can happen asynchronously
+    if (req.user) {
+      setImmediate(async () => {
+        try {
+          const finalAction = req.audit_info || getHumanAction(method, path);
+          
+          await AuditLog.create({
+            business_partner_key: req.user.business_partner_key,
+            action: finalAction,
+            method: method,
+            path: path,
+            payload: isMutation ? JSON.stringify(req.body) : null,
+            ip_address: req.ip || req.connection.remoteAddress,
+            status_code: res.statusCode,
+          });
+        } catch (err) {
+          console.error("Audit log error:", err.message);
+        }
+      });
     }
   });
 

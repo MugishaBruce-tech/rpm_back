@@ -36,23 +36,36 @@ const requireAuth = async (req, res, next) => {
       const finalUserId = userId || business_partner_key;
       const isInternal = is_internal === true || is_internal === 'true';
 
-      if (isInternal) {
-        user = await BrarudiUser.findOne({
-          where: { id: finalUserId, status: "active" },
-          include: [{ 
-            model: Profil, 
-            as: "profil",
-            include: [{ model: Permission, as: "permissions" }]
-          }],
-        });
-      } else {
-        user = await BusinessPartner.findOne({
-          where: { business_partner_key: finalUserId, business_partner_status: "active" },
-          include: [{ 
-            model: Profil, 
-            as: "profil",
-            include: [{ model: Permission, as: "permissions" }]
-          }],
+      try {
+        if (isInternal) {
+          user = await BrarudiUser.findOne({
+            where: { id: finalUserId, status: "active" },
+            include: [{ 
+              model: Profil, 
+              as: "profil",
+              include: [{ model: Permission, as: "permissions" }]
+            }],
+            raw: false,
+            logging: false,
+          });
+        } else {
+          user = await BusinessPartner.findOne({
+            where: { business_partner_key: finalUserId, business_partner_status: "active" },
+            include: [{ 
+              model: Profil, 
+              as: "profil",
+              include: [{ model: Permission, as: "permissions" }]
+            }],
+            raw: false,
+            logging: false,
+          });
+        }
+      } catch (dbErr) {
+        console.error("Database query timeout in requireAuth:", dbErr.message);
+        return res.status(RESPONSE_CODES.INTERNAL_SERVER_ERROR).json({
+          statusCode: RESPONSE_CODES.INTERNAL_SERVER_ERROR,
+          httpStatus: RESPONSE_STATUS.INTERNAL_SERVER_ERROR,
+          message: "Database connection error. Please try again.",
         });
       }
 
