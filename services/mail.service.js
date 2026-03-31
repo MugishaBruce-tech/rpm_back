@@ -11,12 +11,12 @@ class MailService {
 
   getTransporter() {
     return nodemailer.createTransport({
-      host: process.env.MAIL_HOST || "82.208.23.214",
-      port: parseInt(process.env.MAIL_PORT) || 587,
-      secure: false, 
+      host: process.env.EMAIL_HOST,
+      port: parseInt(process.env.EMAIL_PORT) || 587,
+      secure: process.env.EMAIL_SECURE === "true", 
       auth: {
-        user: process.env.MAIL_USERNAME || "noreply@mediabox.bi",
-        pass: process.env.MAIL_PASSWORD || "-B1s2s-fmS&tB]W_",
+        user: process.env.EMAIL_USERNAME,
+        pass: process.env.EMAIL_PASSWORD,
       },
       tls: {
         rejectUnauthorized: false
@@ -36,7 +36,7 @@ class MailService {
     const loginUrl = process.env.FRONTEND_URL || "http://localhost:5173";
     
     const mailOptions = {
-      from: `"BRARUDI RPM Tracker" <${process.env.MAIL_FROM || "noreply@mediabox.bi"}>`,
+      from: `"BRARUDI RPM Tracker" <${process.env.EMAIL_FROM}>`,
       to,
       subject: "Welcome to BRARUDI RPM Tracker - Your Account Credentials",
       html: `
@@ -85,7 +85,8 @@ class MailService {
    */
   async sendOTPEmail(to, name, otp) {
     const mailOptions = {
-      from: `"BRARUDI RPM Tracker" <${process.env.MAIL_FROM || "noreply@mediabox.bi"}>`,
+      from: `"BRARUDI RPM Tracker" <${process.env.EMAIL_FROM}>`,
+
       to,
       subject: "Security Verification Code - RPM Tracker",
       html: `
@@ -129,7 +130,8 @@ class MailService {
     const loginUrl = process.env.FRONTEND_URL || "http://localhost:5173";
     
     const mailOptions = {
-      from: `"BRARUDI RPM Tracker" <${process.env.MAIL_FROM || "noreply@mediabox.bi"}>`,
+      from: `"BRARUDI RPM Tracker" <${process.env.EMAIL_FROM}>`,
+
       to,
       subject: "New Loan Request - Action Required",
       html: `
@@ -181,7 +183,8 @@ class MailService {
     const loginUrl = process.env.FRONTEND_URL || "http://localhost:5173";
     
     const mailOptions = {
-      from: `"BRARUDI RPM Tracker" <${process.env.MAIL_FROM || "noreply@mediabox.bi"}>`,
+      from: `"BRARUDI RPM Tracker" <${process.env.EMAIL_FROM}>`,
+
       to,
       subject: "Password Updated - BRARUDI RPM Tracker",
       html: `
