@@ -24,4 +24,22 @@ auth_routes.post("/mfa/verify", authLimiter, validate(mfaVerifySchema), auth_con
 auth_routes.post("/verify-otp", authLimiter, validate(otpSchema), auth_controller.verifyEmailOTP);
 auth_routes.post("/resend-otp", authLimiter, auth_controller.resendOTP);
 
+// DEBUG: Test email connection (remove in production)
+auth_routes.get("/debug/test-mail", async (req, res) => {
+  try {
+    const mailService = require("../../services/mail.service");
+    console.log("[DEBUG] Testing mail connection...");
+    const result = await mailService.testConnection();
+    res.status(200).json({ success: true, message: result });
+  } catch (error) {
+    console.error("[DEBUG] Mail connection test failed:", error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message,
+      code: error.code,
+      response: error.response 
+    });
+  }
+});
+
 module.exports = auth_routes;

@@ -24,6 +24,8 @@ class MailService {
       host: process.env.EMAIL_HOST,
       port: parseInt(process.env.EMAIL_PORT) || 587,
       secure: process.env.EMAIL_SECURE === "true", 
+      connectionTimeout: 10000, // 10 seconds
+      socketTimeout: 10000, // 10 seconds
       auth: {
         user: process.env.EMAIL_USERNAME,
         pass: process.env.EMAIL_PASSWORD,
