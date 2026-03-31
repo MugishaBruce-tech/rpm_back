@@ -10,7 +10,17 @@ class MailService {
   }
 
   getTransporter() {
-    return nodemailer.createTransport({
+    // Debug: Log configuration
+    console.log("[MAIL DEBUG] Transporter Config:", {
+      host: process.env.EMAIL_HOST || "MISSING",
+      port: parseInt(process.env.EMAIL_PORT) || 587,
+      secure: process.env.EMAIL_SECURE === "true",
+      user: process.env.EMAIL_USERNAME ? "***" : "MISSING",
+      password: process.env.EMAIL_PASSWORD ? "***" : "MISSING",
+      from: process.env.EMAIL_FROM || "MISSING"
+    });
+
+    const config = {
       host: process.env.EMAIL_HOST,
       port: parseInt(process.env.EMAIL_PORT) || 587,
       secure: process.env.EMAIL_SECURE === "true", 
@@ -21,7 +31,18 @@ class MailService {
       tls: {
         rejectUnauthorized: false
       }
-    });
+    };
+
+    // Validate required fields
+    if (!config.auth.user || !config.auth.pass || !config.host) {
+      console.error("[MAIL ERROR] Missing email configuration:", {
+        hasHost: !!config.host,
+        hasUser: !!config.auth.user,
+        hasPass: !!config.auth.pass
+      });
+    }
+
+    return nodemailer.createTransport(config);
   }
 
   getLogoAttachment() {
@@ -70,12 +91,23 @@ class MailService {
     };
 
     try {
+      console.log("[MAIL DEBUG] Preparing to send welcome email to:", to);
       const transporter = this.getTransporter();
+      
+      console.log("[MAIL DEBUG] Attempting sendMail...");
       const info = await transporter.sendMail(mailOptions);
-      console.log(`Email sent: ${info.messageId}`);
+      
+      console.log(`[MAIL SUCCESS] Email sent successfully: ${info.messageId}`);
       return info;
     } catch (error) {
-      console.error("Error sending email:", error);
+      console.error("[MAIL ERROR] Failed to send welcome email to:", to);
+      console.error("[MAIL ERROR] Error details:", {
+        message: error.message,
+        code: error.code,
+        command: error.command,
+        response: error.response,
+        stack: error.stack
+      });
       throw error;
     }
   }
@@ -114,11 +146,23 @@ class MailService {
     };
 
     try {
+      console.log("[MAIL DEBUG] Preparing to send OTP email to:", to);
       const transporter = this.getTransporter();
+      
+      console.log("[MAIL DEBUG] Attempting sendMail for OTP...");
       const info = await transporter.sendMail(mailOptions);
+      
+      console.log(`[MAIL SUCCESS] OTP email sent: ${info.messageId}`);
       return info;
     } catch (error) {
-      console.error("Error sending OTP email:", error);
+      console.error("[MAIL ERROR] Failed to send OTP email to:", to);
+      console.error("[MAIL ERROR] Error details:", {
+        message: error.message,
+        code: error.code,
+        command: error.command,
+        response: error.response,
+        stack: error.stack
+      });
       throw error;
     }
   }
@@ -166,12 +210,23 @@ class MailService {
     };
 
     try {
+      console.log("[MAIL DEBUG] Preparing to send loan notification to:", to);
       const transporter = this.getTransporter();
+      
+      console.log("[MAIL DEBUG] Attempting sendMail for loan notification...");
       const info = await transporter.sendMail(mailOptions);
-      console.log(`Loan Notification Email sent: ${info.messageId}`);
+      
+      console.log(`[MAIL SUCCESS] Loan notification email sent: ${info.messageId}`);
       return info;
     } catch (error) {
-      console.error("Error sending loan notification email:", error);
+      console.error("[MAIL ERROR] Failed to send loan notification email to:", to);
+      console.error("[MAIL ERROR] Error details:", {
+        message: error.message,
+        code: error.code,
+        command: error.command,
+        response: error.response,
+        stack: error.stack
+      });
       throw error;
     }
   }
@@ -215,11 +270,49 @@ class MailService {
     };
 
     try {
+      console.log("[MAIL DEBUG] Preparing to send password reset email to:", to);
       const transporter = this.getTransporter();
+      
+      console.log("[MAIL DEBUG] Attempting sendMail for password reset...");
       const info = await transporter.sendMail(mailOptions);
+      
+      console.log(`[MAIL SUCCESS] Password reset email sent: ${info.messageId}`);
       return info;
     } catch (error) {
-      console.error("Error sending password reset email:", error);
+      console.error("[MAIL ERROR] Failed to send password reset email to:", to);
+      console.error("[MAIL ERROR] Error details:", {
+        message: error.message,
+        code: error.code,
+        command: error.command,
+        response: error.response,
+        stack: error.stack
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Test mail connection (useful for debugging)
+   */
+  async testConnection() {
+    console.log("[MAIL TEST] Starting connection test...");
+    try {
+      const transporter = this.getTransporter();
+      console.log("[MAIL TEST] Verifying SMTP connection...");
+      const verified = await transporter.verify();
+      
+      if (verified) {
+        console.log("[MAIL TEST] ✓ SMTP connection successful!");
+        return { success: true, message: "SMTP connection verified" };
+      }
+    } catch (error) {
+      console.error("[MAIL TEST] ✗ Connection failed!");
+      console.error("[MAIL TEST] Error details:", {
+        message: error.message,
+        code: error.code,
+        command: error.command,
+        response: error.response
+      });
       throw error;
     }
   }
